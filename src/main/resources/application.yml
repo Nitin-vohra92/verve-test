@@ -1,0 +1,34 @@
+
+server:
+    port: 8080
+
+app:
+    stats:
+        output: file
+        directory: ./stats
+
+#app:
+#    stats:
+#        output: kafka
+
+spring:
+    kafka:
+        bootstrap-servers: localhost:9092
+        producer:
+            key-serializer: org.apache.kafka.common.serialization.StringSerializer
+            value-serializer: org.apache.kafka.common.serialization.StringSerializer
+    data:
+        redis:
+            host: localhost
+            port: 6379
+
+logging:
+    pattern:
+        console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+        file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+    file:
+        name: ./logs/requests.log
+    level:
+        root: INFO
+        com.example: DEBUG
+        org.springframework.data.redis: INFO
