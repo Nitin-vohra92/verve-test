@@ -40,7 +40,7 @@ public class RequestService {
     }
 
     // Scheduler to run every minute
-    @Scheduled(cron = "0 * * * * *") // Runs at the start of every minute
+    @Scheduled(cron = "0 * * * * *")
     public void processPreviousMinute() {
         String previousMinute = LocalDateTime.now()
                 .minus(1, ChronoUnit.MINUTES) // Get the previous minute
@@ -56,10 +56,8 @@ public class RequestService {
                     int uniqueCount = requests.size();
 
                     if (uniqueCount > 0) {
-                        // Write stats for the previous minute
                         statsWriter.writeStats(uniqueCount, previousMinute);
 
-                        // Optionally send HTTP requests
                         log.info("Processed {} unique requests for minute {}", uniqueCount, previousMinute);
                     }
 
@@ -82,15 +80,27 @@ public class RequestService {
                     return customReactiveRedisTemplate.expire(redisKey, Duration.ofMinutes(2))
                             .then(Mono.just(true));
                 })
+                .flatMap(success -> {
+                    return customReactiveRedisTemplate.opsForSet().size(redisKey)
+                            .flatMap(count -> {
+                                if (endpoint != null && !endpoint.isEmpty()) {
+                                    return makePostHttpRequest(endpoint, count.intValue())
+                                            .thenReturn(true);
+                                }
+                                log.info("Current minute count: {}", count);
+                                return Mono.just(true);
+                            });
+                })
                 .onErrorResume(e -> {
                     log.error("Error processing request", e);
                     return Mono.just(false);
                 });
     }
 
-    private Mono<Boolean> makeGetHttpRequest(String endpoint, int count) {
-        return webClient.get()
+    private Mono<Boolean> makePostHttpRequest(String endpoint, int count) {
+        return webClient.post()
                 .uri(endpoint)
+                .bodyValue(Map.of("uniqueRequests", count))
                 .retrieve()
                 .toBodilessEntity()
                 .map(response -> {
@@ -103,10 +113,9 @@ public class RequestService {
                 });
     }
 
-    private Mono<Boolean> makePostHttpRequest(String endpoint, int count) {
-        return webClient.post()
+    private Mono<Boolean> makeGetHttpRequest(String endpoint, int count) {
+        return webClient.get()
                 .uri(endpoint)
-                .bodyValue(Map.of("uniqueRequests", count))
                 .retrieve()
                 .toBodilessEntity()
                 .map(response -> {
